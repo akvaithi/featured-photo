@@ -1,0 +1,17 @@
+# Build output
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Xcode user/project state (project is generated from project.yml via XcodeGen)
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM

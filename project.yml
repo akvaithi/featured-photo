@@ -1,0 +1,31 @@
+name: FeaturedPhoto
+options:
+  bundleIdPrefix: com.akvaithi
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_STRICT_CONCURRENCY: minimal
+targets:
+  FeaturedPhoto:
+    type: application
+    platform: macOS
+    sources:
+      - FeaturedPhoto
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.akvaithi.FeaturedPhoto
+        PRODUCT_NAME: FeaturedPhoto
+        INFOPLIST_FILE: FeaturedPhoto/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FeaturedPhoto/FeaturedPhoto.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
