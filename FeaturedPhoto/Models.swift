@@ -1,44 +1,62 @@
 import Foundation
 import Photos
 
+/// Where a photo in a stack came from.
+///
+/// A scan is either over the Photos library or over a folder on disk, never
+/// both at once, but every view downstream works off this so neither has to
+/// know which it is looking at.
+enum PhotoSource: Hashable {
+    case library(PHAsset)
+    case file(URL)
+
+    /// Stable within a scan, and unique across a library or a folder tree.
+    var id: String {
+        switch self {
+        case .library(let asset): return asset.localIdentifier
+        case .file(let url): return url.path
+        }
+    }
+
+    /// The asset, when this came from the Photos library. Deletion is the only
+    /// thing that needs it — the app never deletes a file off disk.
+    var asset: PHAsset? {
+        if case .library(let asset) = self { return asset }
+        return nil
+    }
+
+    var url: URL? {
+        if case .file(let url) = self { return url }
+        return nil
+    }
+
+    /// Shown in the detail view for folder scans, where a filename is the only
+    /// thing identifying a frame.
+    var displayName: String? { url?.lastPathComponent }
+}
+
 /// A single photo candidate within (or outside of) a stack.
 struct PhotoItem: Identifiable, Hashable {
-    let id: String          // PHAsset.localIdentifier
-    let asset: PHAsset
+    let source: PhotoSource
     let creationDate: Date
     var score: Double = 0   // best-shot score, higher = better
     var breakdown: ScoreBreakdown?
     var distanceToTop: Double?  // feature-print distance to the stack's top pick (lower = more similar)
+
+    var id: String { source.id }
 
     static func == (lhs: PhotoItem, rhs: PhotoItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 /// Coarse orientation buckets. Photos only group with the same bucket.
-enum PhotoOrientation: String {
-    case portrait, landscape, square
-}
+/// The thresholds live in `Clustering`, which the Lightroom helper shares.
+typealias PhotoOrientation = Clustering.Orientation
 
 extension PHAsset {
     var orientationBucket: PhotoOrientation {
-        let w = Double(pixelWidth), h = Double(pixelHeight)
-        guard w > 0, h > 0 else { return .square }
-        let ratio = w / h
-        if ratio > 1.15 { return .landscape }
-        if ratio < 0.87 { return .portrait }
-        return .square
+        Clustering.orientation(width: Double(pixelWidth), height: Double(pixelHeight))
     }
-}
-
-/// Explains how a photo's best-shot score was composed (for display + tuning).
-struct ScoreBreakdown: Hashable {
-    var total: Double
-    var aesthetic: Double   // 0...1 (composition/exposure/blur)
-    var isUtility: Bool     // screenshot / document / receipt
-    var faceCount: Int
-    var faceQuality: Double // 0...1 (sharp, well-captured faces)
-    var eyesOpen: Double    // 0...1 fraction of faces with both eyes open
-    var smiling: Double     // 0...1 fraction of faces smiling
 }
 
 /// A group of near-identical photos. `items` is sorted best-first.
@@ -50,6 +68,11 @@ struct PhotoStack: Identifiable {
     var others: [PhotoItem] { Array(items.dropFirst()) }
     var count: Int { items.count }
     var date: Date { topPick.creationDate }
+
+    /// Folder scans have nothing to delete through — the app only ever deletes
+    /// via PhotoKit, which puts photos in Recently Deleted rather than removing
+    /// files from someone's disk.
+    var isDeletable: Bool { items.allSatisfy { $0.source.asset != nil } }
 }
 
 /// Tunable knobs for the stacking engine.

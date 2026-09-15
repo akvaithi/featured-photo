@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -14,7 +15,7 @@ struct ContentView: View {
                 placeholder(
                     icon: "square.stack.3d.up",
                     title: "Find your photo stacks",
-                    message: "Scan your library to group near-identical shots and surface the best one from each."
+                    message: "Scan your Photos library — or point “Scan Folder…” at a folder on disk — to group near-identical shots and surface the best one from each."
                 )
             case .denied:
                 placeholder(
@@ -38,10 +39,20 @@ struct ContentView: View {
                 Button { showSettings.toggle() } label: { Image(systemName: "slider.horizontal.3") }
                     .help("Stacking settings")
                 Button {
+                    if let folder = chooseFolder() {
+                        Task { await store.scanFolder(folder) }
+                    }
+                } label: {
+                    Label("Scan Folder…", systemImage: "folder")
+                }
+                .help("Group photos in a folder on disk instead of the Photos library")
+                .disabled(isScanning)
+                Button {
                     Task { await store.scan() }
                 } label: {
                     Label("Scan", systemImage: "arrow.clockwise")
                 }
+                .help("Scan the Photos library")
                 .disabled(isScanning)
             }
         }
@@ -57,13 +68,26 @@ struct ContentView: View {
         return false
     }
 
+    /// The open panel is also what grants a sandboxed app access to the folder:
+    /// the entitlement is `files.user-selected.read-only`, so nothing outside
+    /// what the user picks here is readable.
+    private func chooseFolder() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Scan"
+        panel.message = "Choose a folder of photos to group. Nothing in it is modified."
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     private var stackGrid: some View {
         Group {
             if store.stacks.isEmpty {
                 placeholder(
                     icon: "checkmark.circle",
                     title: "No stacks found",
-                    message: "No near-identical bursts in the most recent \(store.config.scanLimit) photos. Try widening the time window or raising the similarity threshold in settings."
+                    message: emptyMessage
                 )
             } else {
                 ScrollView {
@@ -76,6 +100,18 @@ struct ContentView: View {
                     .padding()
                 }
             }
+        }
+    }
+
+    /// The "nothing found" text has to name the right source — telling someone
+    /// who scanned a folder about their scan limit would just be confusing.
+    private var emptyMessage: String {
+        let tail = "Try widening the time window or raising the similarity threshold in settings."
+        switch store.origin {
+        case .library:
+            return "No near-identical bursts in the most recent \(store.config.scanLimit) photos. \(tail)"
+        case .folder(let url):
+            return "No near-identical bursts in “\(url.lastPathComponent)”. \(tail)"
         }
     }
 
@@ -101,7 +137,7 @@ struct StackCard: View {
             ZStack(alignment: .topTrailing) {
                 Color.clear
                     .aspectRatio(1, contentMode: .fit)   // square sized to the cell width
-                    .overlay { AssetImage(asset: stack.topPick.asset) }
+                    .overlay { AssetImage(source: stack.topPick.source) }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 Label("\(stack.count)", systemImage: "square.stack.3d.up.fill")

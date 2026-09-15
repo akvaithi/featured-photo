@@ -28,7 +28,7 @@ struct StackDetailView: View {
             Divider()
 
             if let selectedItem {
-                AssetImage(asset: selectedItem.asset, maxDimension: 1400)
+                AssetImage(source: selectedItem.source, maxDimension: 1400)
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black.opacity(0.04))
@@ -82,7 +82,7 @@ struct StackDetailView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(currentStack.items) { item in
-                    AssetImage(asset: item.asset, maxDimension: 200)
+                    AssetImage(source: item.source, maxDimension: 200)
                         .frame(width: 84, height: 84)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .overlay(
@@ -107,27 +107,43 @@ struct StackDetailView: View {
 
     private var actionBar: some View {
         HStack {
-            if let selectedItem, selectedItem.id != currentStack.topPick.id {
-                Button(role: .destructive) {
-                    delete([selectedItem.id])
-                } label: { Label("Delete this", systemImage: "trash") }
+            // A folder scan has nothing to delete through: the app only ever
+            // deletes via PhotoKit, which moves photos to Recently Deleted.
+            // Removing files from someone's disk is a different promise, and
+            // this app does not make it.
+            if !currentStack.isDeletable {
+                Label("Folder scan — nothing here is modified", systemImage: "folder")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let name = selectedItem?.source.displayName {
+                    Text(name).font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                if let selectedItem, selectedItem.id != currentStack.topPick.id {
+                    Button(role: .destructive) {
+                        delete([selectedItem.id])
+                    } label: { Label("Delete this", systemImage: "trash") }
+                }
+                Spacer()
+                Button {
+                    let rest = Set(currentStack.others.map(\.id))
+                    delete(rest)
+                } label: {
+                    Label("Keep top pick, delete \(currentStack.count - 1) others", systemImage: "sparkles")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(currentStack.count < 2)
             }
-            Spacer()
-            Button {
-                let rest = Set(currentStack.others.map(\.id))
-                delete(rest)
-            } label: {
-                Label("Keep top pick, delete \(currentStack.count - 1) others", systemImage: "sparkles")
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(currentStack.count < 2)
         }
         .padding()
         .overlay { if isDeleting { ProgressView() } }
     }
 
     private func delete(_ ids: Set<String>) {
-        let assets = currentStack.items.filter { ids.contains($0.id) }.map(\.asset)
+        let assets = currentStack.items
+            .filter { ids.contains($0.id) }
+            .compactMap(\.source.asset)
         guard !assets.isEmpty else { return }
         isDeleting = true
         Task {

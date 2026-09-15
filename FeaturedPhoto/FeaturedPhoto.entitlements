@@ -6,6 +6,11 @@
 	<true/>
 	<key>com.apple.security.personal-information.photos-library</key>
 	<true/>
+	<!-- "Scan Folder…": the open panel is what grants access, so the app can
+	     read the folder the user picks and nothing else. Read-only on purpose —
+	     a folder scan never writes, and never deletes. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

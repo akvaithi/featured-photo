@@ -15,3 +15,7 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Built plug-in helper — produced by lightroom/scripts/build-scorer.sh, never committed
+lightroom/FeaturedStacks.lrdevplugin/bin/macOS/featured-scorer
+lightroom/FeaturedStacks.lrdevplugin/bin/windows/*.exe

@@ -1,9 +1,12 @@
+import AppKit
 import Photos
 import SwiftUI
 
-/// Loads and displays a PHAsset thumbnail asynchronously, with a simple in-memory cache.
+/// Loads and displays a photo's thumbnail asynchronously, with a simple
+/// in-memory cache. Works for both scan sources: PhotoKit assets go through
+/// `PhotoLibrary`, files on disk through `FolderLibrary`.
 struct AssetImage: View {
-    let asset: PHAsset
+    let source: PhotoSource
     var maxDimension: CGFloat = 400
 
     @State private var image: NSImage?
@@ -20,16 +23,33 @@ struct AssetImage: View {
                     .overlay(ProgressView().controlSize(.small))
             }
         }
-        .task(id: asset.localIdentifier) {
-            if let cached = ThumbnailCache.shared.image(for: asset.localIdentifier, size: maxDimension) {
+        .task(id: source.id) {
+            if let cached = ThumbnailCache.shared.image(for: source.id, size: maxDimension) {
                 image = cached
                 return
             }
-            let loaded = await PhotoLibrary.image(for: asset, maxDimension: maxDimension)
+            let loaded = await Self.load(source, maxDimension: maxDimension)
             if let loaded {
-                ThumbnailCache.shared.store(loaded, for: asset.localIdentifier, size: maxDimension)
+                ThumbnailCache.shared.store(loaded, for: source.id, size: maxDimension)
             }
             image = loaded
+        }
+    }
+
+    private static func load(_ source: PhotoSource, maxDimension: CGFloat) async -> NSImage? {
+        switch source {
+        case .library(let asset):
+            return await PhotoLibrary.image(for: asset, maxDimension: maxDimension)
+
+        case .file(let url):
+            // Off the main actor: decoding a full-size frame down to 1400px is
+            // slow enough to drop frames in the detail view's filmstrip.
+            return await Task.detached(priority: .userInitiated) {
+                guard let cg = FolderLibrary.cgImage(at: url, maxDimension: Int(maxDimension)) else {
+                    return nil
+                }
+                return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            }.value
         }
     }
 }
